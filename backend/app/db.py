@@ -20,8 +20,8 @@ def _seed_users(cursor: sqlite3.Cursor) -> None:
 	"""Populate the users table with a couple of demo accounts if it's empty."""
 	cursor.executemany(
 		"""
-		INSERT INTO users (username,)
-		VALUES (?)
+		INSERT INTO users (username, password)
+		VALUES (?, ?)
 		"""
 	,
 		_demo_users(),
@@ -30,13 +30,18 @@ def _seed_users(cursor: sqlite3.Cursor) -> None:
 
 def _demo_users() -> Iterable[Tuple[str]]:
 	return (
-		("alice",),
-		("bob",),
+		("alice", "password123"),
+		("bob", "bob_destroyer"),
 	)
 
+def clear_db() -> None:
+	"""Removes user and license tables."""
+	if DB_PATH.exists():
+		DB_PATH.unlink()
 
 def init_db() -> None:
-	"""Create tables"""
+	"""Delete old tables and create new ones."""
+	clear_db()
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 	with get_connection() as conn:
 		cursor = conn.cursor()
@@ -44,7 +49,8 @@ def init_db() -> None:
 			"""
 			CREATE TABLE IF NOT EXISTS users (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				username TEXT UNIQUE NOT NULL
+				username TEXT UNIQUE NOT NULL,
+				password TEXT NOT NULL
 			)
 			"""
 		)
