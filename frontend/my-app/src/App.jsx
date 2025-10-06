@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import Login from './Login.jsx'
-import MainPage from './MainPage.jsx'
+import Login from './LoginPage/Login.jsx'
+import MainPage from './MainPage/MainPage.jsx'
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 

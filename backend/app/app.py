@@ -72,6 +72,15 @@ def verify_password(plain: str, hashed: str) -> bool:
 	return pwd_context.verify(plain, hashed)
 
 
+def validate_password(password: str) -> tuple[bool, str]:
+	"""Validate password meets requirements: 4+ chars, at least 1 number."""
+	if len(password) < 4:
+		return False, "Password must be at least 4 characters long"
+	if not any(char.isdigit() for char in password):
+		return False, "Password must contain at least one number"
+	return True, ""
+
+
 def create_access_token(sub: str, minutes: int) -> tuple[str, datetime]:
 	expires_at = datetime.utcnow() + timedelta(minutes=minutes)
 	payload = {"sub": sub, "exp": expires_at}
@@ -107,8 +116,34 @@ async def list_users(current: User = Depends(get_current_user)):
 		).fetchall()
 	return [User(**dict(row)) for row in rows]
 
+@app.get("/auth/check-username/{username}", tags=["auth"])
+async def check_username(username: str):
+	"""Check if a username is available (not taken)."""
+	if len(username) < 3:
+		raise HTTPException(status_code=400, detail="Username too short")
+	
+	with get_connection() as conn:
+		row = conn.execute(
+			"SELECT id FROM users WHERE username = ?",
+			(username,),
+		).fetchone()
+	
+	return {
+		"username": username,
+		"available": row is None
+	}
+
 @app.post("/auth/login", response_model=Token, tags=["auth"])
 async def login(req: LoginRequest):
+    # Validate password requirements
+    is_valid, error_msg = validate_password(req.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Validate username length
+    if len(req.username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
+    
     with get_connection() as conn:
         row = conn.execute(
             "SELECT id, username, password FROM users WHERE username = ?",
