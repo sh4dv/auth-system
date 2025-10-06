@@ -1,0 +1,62 @@
+.App-header {
+    background-color: #282c34;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; 
+    position: fixed;               
+    top: 0;
+    left: 0;
+    height: 64px;
+    z-index: 1000;
+}
+
+.Header-object {
+    margin: 0 50px;
+}
+
+.Header-title {
+    color: rgb(0, 248, 25);
+    font-size: 24px;
+    font-weight: 600;
+}
+.Header-username {
+    color: rgb(255, 255, 255);
+    font-size: 24px;
+    font-weight: 400;
+}
+
+.Header-logout-btn {
+    background-color: #000000;
+    border: none;
+    border-radius: 25px;
+    color: #ae0000;
+    font-size: 18px;
+    cursor: pointer;
+    animation: logout-btn-glow 5s infinite;
+}
+
+.Header-logout-btn:hover {
+    box-shadow: 0 0 4px 1px rgba(255, 0, 0, 0.35);
+}
+
+/* Reveal hidden ID only when the whole wrapper is hovered/focused */
+.RevealWrapper .Header-secret {
+    opacity: 0;
+    color: hsla(0, 0%, 75%, 0.821);
+}
+
+.RevealWrapper:hover .Header-secret,
+.RevealWrapper:focus-within .Header-secret {
+    opacity: 1;
+}
+
+@keyframes logout-btn-glow {
+    0%, 100% {
+        color: #ae0000;
+    }
+    50% {
+        color: #dd0000;
+    }
+    
+}
