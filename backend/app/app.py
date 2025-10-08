@@ -108,6 +108,67 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 	return User(**dict(row))
 
 
+@app.post("/licenses/generate", tags=["licenses"])
+async def generate_license(current: User = Depends(get_current_user), license_key: str = None, length: int = 16, uses: int = 1, amount: int = 1):
+	"""Generate a new license key, replace * with random chars."""
+
+	# Validate inputs
+	if length < 4 or length > 64:
+		raise HTTPException(status_code=400, detail="Invalid license key length")
+	if amount < 1 or amount > 100:
+		raise HTTPException(status_code=400, detail="Invalid amount, must be 1-100")
+	if uses == 0:
+		uses = 999999 # Unlimited uses
+
+	if not license_key:
+		license_key = secrets.token_hex(length)
+	elif "*" in license_key:
+		# Replace * with random hex chars
+		license_key = license_key.replace("*", secrets.token_hex(length)[:license_key.count("*")])
+	with get_connection() as conn:
+		# Ensure unique license key
+		row = conn.execute(
+			"SELECT id FROM licenses WHERE license_key = ?",
+			(license_key,),
+		).fetchone()
+		if row:
+			raise HTTPException(status_code=400, detail="License key already exists")
+		# Insert new license with x uses
+		conn.execute(
+			"INSERT INTO licenses (user_id, license_key, uses) VALUES (?, ?, ?)",
+			(current.id, license_key, uses),
+		)
+	return {"license_key": license_key}
+
+@app.delete("/licenses/delete", tags=["licenses"])
+async def delete_license(license_key: str, current: User = Depends(get_current_user)):
+	with get_connection() as conn:
+		# Check if license exists
+		row = conn.execute(
+			"SELECT id FROM licenses WHERE license_key = ? AND user_id = ?",
+			(license_key, current.id),
+		).fetchone()
+		if not row:
+			raise HTTPException(status_code=404, detail="License not found")
+
+		# Delete the license, if user is the owner
+		conn.execute(
+			"DELETE FROM licenses WHERE id = ? AND user_id = ?",
+			(row["id"], current.id),
+		)
+		return {"detail": "License deleted"}
+
+@app.get("/licenses/validate", tags=["licenses"])
+async def validate_license(license_key: str, current: User = Depends(get_current_user)):
+	with get_connection() as conn:
+		row = conn.execute(
+			"SELECT id FROM licenses WHERE license_key = ? AND user_id = ?",
+			(license_key, current.id),
+		).fetchone()
+		if not row:
+			raise HTTPException(status_code=404, detail="License not found")
+		return {"detail": "License is valid"}
+
 @app.get("/users", response_model=List[User], tags=["users"])
 async def list_users(current: User = Depends(get_current_user)):
 	with get_connection() as conn:

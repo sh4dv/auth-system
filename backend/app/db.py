@@ -60,6 +60,7 @@ def init_db() -> None:
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				user_id INTEGER NOT NULL,
 				license_key TEXT UNIQUE NOT NULL,
+				uses INTEGER NOT NULL DEFAULT 1,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				FOREIGN KEY (user_id) REFERENCES users (id)
 			)
