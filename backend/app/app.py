@@ -123,8 +123,17 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 	if not license_key:
 		license_key = secrets.token_hex(length)
 	elif "*" in license_key:
-		# Replace * with random hex chars
-		license_key = license_key.replace("*", secrets.token_hex(length)[:license_key.count("*")])
+		# Replace each * with a random hex character
+		random_hex = secrets.token_hex(license_key.count("*"))  # Generate enough random chars
+		result = []
+		hex_index = 0
+		for char in license_key:
+			if char == "*":
+				result.append(random_hex[hex_index])
+				hex_index += 1
+			else:
+				result.append(char)
+		license_key = "".join(result)
 	with get_connection() as conn:
 		# Ensure unique license key
 		row = conn.execute(
@@ -139,6 +148,16 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 			(current.id, license_key, uses),
 		)
 	return {"license_key": license_key}
+
+@app.get("/licenses/list", tags=["licenses"])
+async def list_licenses(current: User = Depends(get_current_user)):
+	"""List all licenses owned by the current user."""
+	with get_connection() as conn:
+		rows = conn.execute(
+			"SELECT license_key, uses, created_at FROM licenses WHERE user_id = ? ORDER BY created_at DESC",
+			(current.id,),
+		).fetchall()
+	return [{"license_key": row["license_key"], "uses": row["uses"], "created_at": row["created_at"]} for row in rows]
 
 @app.delete("/licenses/delete", tags=["licenses"])
 async def delete_license(license_key: str, current: User = Depends(get_current_user)):
@@ -159,15 +178,24 @@ async def delete_license(license_key: str, current: User = Depends(get_current_u
 		return {"detail": "License deleted"}
 
 @app.get("/licenses/validate", tags=["licenses"])
-async def validate_license(license_key: str, current: User = Depends(get_current_user)):
+async def validate_license(license_key: str):
+	"""Validate a license key publicly (no authentication required)."""
 	with get_connection() as conn:
 		row = conn.execute(
-			"SELECT id FROM licenses WHERE license_key = ? AND user_id = ?",
-			(license_key, current.id),
+			"SELECT id, uses FROM licenses WHERE license_key = ?",
+			(license_key,),
 		).fetchone()
 		if not row:
 			raise HTTPException(status_code=404, detail="License not found")
-		return {"detail": "License is valid"}
+		
+		uses = row["uses"]
+		if uses == 0:
+			raise HTTPException(status_code=403, detail="License has no uses remaining")
+		
+		return {
+			"detail": "License is valid",
+			"uses": uses if uses != 999999 else "unlimited"
+		}
 
 @app.get("/users", response_model=List[User], tags=["users"])
 async def list_users(current: User = Depends(get_current_user)):

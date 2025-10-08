@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react'
+import './style.css'
 import Header from './Header.jsx'
+import ViewsHandler from './ViewsHandler.jsx'
+import MyLicenses from './Views/MyLicenses.jsx'
+import GenerateLicense from './Views/GenerateLicense.jsx'
+import DeleteLicense from './Views/DeleteLicense.jsx'
+import CheckLicense from './Views/CheckLicense.jsx'
+import IntegrateSystem from './Views/IntegrateSystem.jsx'
 
 function MainPage({ token, setToken, sendRequest }) {
   const [userInfo, setUserInfo] = useState({});
+  const [viewState, setViewState] = useState('my-licenses'); // states according to files in /Views folder
 
   useEffect(() => {
     // Validate token by sending API /me request
@@ -23,7 +31,16 @@ function MainPage({ token, setToken, sendRequest }) {
   return (
     <div>
       {token ? (
-        <Header token={token} setToken={setToken} userInfo={userInfo} />
+        <>
+          <Header token={token} setToken={setToken} userInfo={userInfo} />
+          <ViewsHandler viewState={viewState} setViewState={setViewState} />
+          {viewState === 'my-licenses' && <MyLicenses sendRequest={sendRequest} />}
+          {viewState === 'generate-license' && <GenerateLicense sendRequest={sendRequest} />}
+          {viewState === 'delete-license' && <DeleteLicense sendRequest={sendRequest} />}
+          {viewState === 'check-license' && <CheckLicense sendRequest={sendRequest} />}
+          {viewState === 'integrate-system' && <IntegrateSystem />}
+          
+        </>
       ) : (
         <p>Please log in.</p>
       )}
