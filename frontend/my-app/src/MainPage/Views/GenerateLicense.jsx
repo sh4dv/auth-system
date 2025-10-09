@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../style.css';
 
-function GenerateLicense({ sendRequest }) {
+function GenerateLicense({ sendRequest, isPremium }) {
     const [licenseKey, setLicenseKey] = useState('');
     const [length, setLength] = useState(16);
     const [uses, setUses] = useState(1);
@@ -17,6 +17,11 @@ function GenerateLicense({ sendRequest }) {
         
         try {
             const keys = [];
+            if (!isPremium && amount > 1) {
+                setError('Only premium users can generate multiple licenses at once.');
+                setLoading(false);
+                return;
+            }
             for (let i = 0; i < amount; i++) {
                 // Build query parameters
                 const params = new URLSearchParams();

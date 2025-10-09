@@ -41,7 +41,7 @@ def clear_db() -> None:
 
 def init_db() -> None:
 	"""Delete old tables and create new ones."""
-	clear_db()
+	# clear_db()
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 	with get_connection() as conn:
 		cursor = conn.cursor()
@@ -50,7 +50,8 @@ def init_db() -> None:
 			CREATE TABLE IF NOT EXISTS users (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				username TEXT UNIQUE NOT NULL,
-				password TEXT NOT NULL
+				password TEXT NOT NULL,
+				is_premium BOOLEAN NOT NULL DEFAULT 0
 			)
 			"""
 		)

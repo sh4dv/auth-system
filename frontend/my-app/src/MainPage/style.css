@@ -1,3 +1,26 @@
+.premium {
+    color: gold;
+    font-weight: bold;
+    text-shadow: 0 0 3px gold;
+}
+
+.Header-upgrade-btn {
+    background-color: #000000;
+    border: 1px solid #00f900;
+    border-radius: 6px;
+    color: #00f900;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.Header-upgrade-btn:hover {
+    background-color: #00f90010;
+    box-shadow: 0 0 8px rgba(0, 249, 0, 0.3);
+}
+
 .views-btn {
     background-color: #000000;
     border: none;
@@ -51,6 +74,16 @@
     color: rgb(255, 255, 255);
     font-size: 24px;
     font-weight: 400;
+}
+
+.Header-premium {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 !important; /* Override Header-object margin */
 }
 
 .Header-logout-btn {
@@ -750,4 +783,77 @@
     padding: 2px 6px;
     font-family: 'Courier New', monospace;
     font-size: 13px;
+}
+
+/* Subscribe Popup Styles */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.popup-modal {
+    background-color: #1a1d24;
+    border: 2px solid #00f900;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 249, 0, 0.3);
+    max-width: 400px;
+    text-align: center;
+}
+
+.popup-title {
+    margin-bottom: 20px;
+    color: #00f900;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.popup-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.popup-btn-buy {
+    padding: 10px 30px;
+    background-color: #000000;
+    border: 1px solid #00f900;
+    color: #00f900;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.popup-btn-buy:hover {
+    background-color: #00f90020;
+    box-shadow: 0 0 12px rgba(0, 249, 0, 0.4);
+}
+
+.popup-btn-cancel {
+    padding: 10px 30px;
+    background-color: #3d1010;
+    border: 1px solid #ae0000;
+    color: #ff6b6b;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.popup-btn-cancel:hover {
+    background-color: #4d1515;
+    border-color: #dd0000;
+    box-shadow: 0 0 12px rgba(255, 0, 0, 0.3);
 }

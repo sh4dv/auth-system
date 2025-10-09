@@ -14,6 +14,8 @@ from passlib.context import CryptContext
 from db import get_connection, init_db
 
 app = FastAPI(title="Auth System API", version="0.2.0")
+FREE_LICENSES_LIMIT = 3 # Maximum free licenses per user
+
 
 # NOTE: In production, restrict origins to your frontend domain(s).
 origins = ["*"]
@@ -30,6 +32,7 @@ app.add_middleware(
 class User(BaseModel):
 	id: int
 	username: str
+	is_premium: int = 0
 
 
 class LoginRequest(BaseModel):
@@ -67,6 +70,14 @@ async def health():
 	return {"status": "ok"}
 
 
+@app.get("/users/count", tags=["users"])
+async def get_users_count():
+	"""Get total number of registered users (public endpoint)."""
+	with get_connection() as conn:
+		row = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()
+	return {"count": row["count"]}
+
+
 def verify_password(plain: str, hashed: str) -> bool:
 	"""Verify bcrypt hashed password."""
 	return pwd_context.verify(plain, hashed)
@@ -100,7 +111,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 
 	with get_connection() as conn:
 		row = conn.execute(
-			"SELECT id, username FROM users WHERE username = ?",
+			"SELECT id, username, is_premium FROM users WHERE username = ?",
 			(username,),
 		).fetchone()
 	if not row:
@@ -111,8 +122,31 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 @app.post("/licenses/generate", tags=["licenses"])
 async def generate_license(current: User = Depends(get_current_user), license_key: str = None, length: int = 16, uses: int = 1, amount: int = 1):
 	"""Generate a new license key, replace * with random chars."""
+	# Check user limits
+	with get_connection() as conn:
+		row = conn.execute(
+			"SELECT COUNT(*) as count FROM licenses WHERE user_id = ?",
+			(current.id,),
+		).fetchone()
+		license_count = row["count"]
+		row = conn.execute(
+			"SELECT is_premium FROM users WHERE id = ?",
+			(current.id,),
+		).fetchone()
+		is_premium = row["is_premium"]
+	license_count += amount
 
+	# Check license limits
+	if not is_premium and license_count >= FREE_LICENSES_LIMIT:
+		raise HTTPException(status_code=403, detail="Free license limit reached. Upgrade to premium for more.")
+	if amount > 1 and not is_premium:
+		raise HTTPException(status_code=403, detail="Only premium users can generate multiple licenses at once.")
+	if amount > 1000:
+		raise HTTPException(status_code=400, detail="Can only generate up to 1000 licenses at once.")
+	
 	# Validate inputs
+	if amount < 1:
+		raise HTTPException(status_code=400, detail="Invalid licenses amount")
 	if length < 4 or length > 64:
 		raise HTTPException(status_code=400, detail="Invalid license key length")
 	if amount < 1 or amount > 100:
@@ -201,7 +235,7 @@ async def validate_license(license_key: str):
 async def list_users(current: User = Depends(get_current_user)):
 	with get_connection() as conn:
 		rows = conn.execute(
-			"SELECT id, username FROM users ORDER BY id"
+			"SELECT id, username, is_premium FROM users ORDER BY id"
 		).fetchall()
 	return [User(**dict(row)) for row in rows]
 
@@ -272,6 +306,17 @@ async def login(req: LoginRequest):
         "token_type": "bearer",
         "expires_at": expires_at,
     }
+
+@app.post("/subscribe", tags=["subscriptions"])
+async def subscribe(current: User = Depends(get_current_user)):
+	# Change user type to premium
+	with get_connection() as conn:
+		conn.execute(
+			"UPDATE users SET is_premium = 1 WHERE id = ?",
+			(current.id,),
+		)
+	# No payment gateway yet, just a placeholder
+	return {"detail": "User upgraded to premium"}
 
 @app.get("/me", response_model=User, tags=["auth"])
 async def me(current: User = Depends(get_current_user)):

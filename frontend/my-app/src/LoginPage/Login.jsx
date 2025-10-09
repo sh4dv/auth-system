@@ -8,6 +8,21 @@ function Login({ setToken, sendRequest }) {
   const [usernameStatus, setUsernameStatus] = useState(null) // 'available', 'taken', 'checking', 'too-short', null
   const [password, setPassword] = useState('')
   const [passwordStatus, setPasswordStatus] = useState(null) // 'valid', 'too-short', 'no-number', null
+  const [lastFocused, setLastFocused] = useState('username') // Track which field was last focused
+  const [usersCount, setUsersCount] = useState(0)
+  
+  useEffect(() => {
+    // Fetch total users count on component mount
+    const fetchUsersCount = async () => {
+      try {
+        const data = await sendRequest('GET', 'users/count');
+        setUsersCount(data.count);
+      } catch {
+        setUsersCount(0);
+      }
+    };
+    fetchUsersCount();
+  }, [sendRequest]);
 
   useEffect(() => {
     if (!username) {
@@ -69,6 +84,7 @@ function Login({ setToken, sendRequest }) {
 
   return (
     <div className="login-container">
+      <p className="users-count">Total users: {usersCount}</p>
       <h2>Login or register</h2>
       <form onSubmit={handleSubmit}>
         <div className='form-group'>
@@ -80,6 +96,7 @@ function Login({ setToken, sendRequest }) {
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            onFocus={() => setLastFocused('username')}
           />
           <input
             type={showPassword ? 'text' : 'password'}
@@ -89,33 +106,44 @@ function Login({ setToken, sendRequest }) {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onFocus={() => setLastFocused('password')}
           />
           <div className="input-footer">
             <div className="form-status">
-              {/* Priority: Password validation > Username validation > Default */}
-              {passwordStatus === 'too-short' && (
-                <span className="status-too-short">At least 4 characters</span>
-              )}
-              {passwordStatus === 'no-number' && (
-                <span className="status-taken">Must contain a number</span>
-              )}
-              {passwordStatus === 'valid' && (
-                <span className="status-available">✓ Password strong</span>
-              )}
-              {!passwordStatus && usernameStatus === 'too-short' && (
-                <span className="status-too-short">At least 3 characters</span>
-              )}
-              {!passwordStatus && usernameStatus === 'checking' && (
-                <span className="status-checking">Checking username...</span>
-              )}
-              {!passwordStatus && usernameStatus === 'available' && (
-                <span className="status-available">✓ Username available</span>
-              )}
-              {!passwordStatus && usernameStatus === 'taken' && (
-                <span className="status-taken">✗ Username taken</span>
-              )}
-              {!passwordStatus && !usernameStatus && (
-                <span className="status-default">Please fill out the form</span>
+              {/* Display status based on which field was last focused */}
+              {lastFocused === 'password' ? (
+                <>
+                  {passwordStatus === 'too-short' && (
+                    <span className="status-too-short">At least 4 characters</span>
+                  )}
+                  {passwordStatus === 'no-number' && (
+                    <span className="status-taken">Must contain a number</span>
+                  )}
+                  {passwordStatus === 'valid' && (
+                    <span className="status-available">✓ Password strong</span>
+                  )}
+                  {!passwordStatus && (
+                    <span className="status-default">Enter password</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {usernameStatus === 'too-short' && (
+                    <span className="status-too-short">At least 3 characters</span>
+                  )}
+                  {usernameStatus === 'checking' && (
+                    <span className="status-checking">Checking username...</span>
+                  )}
+                  {usernameStatus === 'available' && (
+                    <span className="status-available">✓ Username available</span>
+                  )}
+                  {usernameStatus === 'taken' && (
+                    <span className="status-taken">✗ Username taken</span>
+                  )}
+                  {!usernameStatus && (
+                    <span className="status-default">Enter username</span>
+                  )}
+                </>
               )}
             </div>
             <button
