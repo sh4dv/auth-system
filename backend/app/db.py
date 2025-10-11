@@ -41,7 +41,7 @@ def clear_db() -> None:
 
 def init_db() -> None:
 	"""Delete old tables and create new ones."""
-	# clear_db()
+	clear_db()
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 	with get_connection() as conn:
 		cursor = conn.cursor()
@@ -51,7 +51,8 @@ def init_db() -> None:
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				username TEXT UNIQUE NOT NULL,
 				password TEXT NOT NULL,
-				is_premium BOOLEAN NOT NULL DEFAULT 0
+				is_premium BOOLEAN NOT NULL DEFAULT 0,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 			"""
 		)
@@ -67,4 +68,26 @@ def init_db() -> None:
 			)
 			"""
 		)
+		cursor.execute(
+			"""
+			CREATE TABLE IF NOT EXISTS global_stats (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				total_users INTEGER NOT NULL DEFAULT 0,
+				total_licenses_created INTEGER NOT NULL DEFAULT 0,
+				total_licenses_active INTEGER NOT NULL DEFAULT 0,
+				total_licenses_deleted INTEGER NOT NULL DEFAULT 0,
+				total_license_validations INTEGER NOT NULL DEFAULT 0,
+				last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)
+			"""
+		)
+		# Initialize global_stats if empty
+		cursor.execute("SELECT COUNT(*) as count FROM global_stats")
+		if cursor.fetchone()["count"] == 0:
+			cursor.execute(
+				"""
+				INSERT INTO global_stats (total_users, total_licenses_created, total_licenses_active, total_licenses_deleted, total_license_validations)
+				VALUES (0, 0, 0, 0, 0)
+				"""
+			)
 		conn.commit()

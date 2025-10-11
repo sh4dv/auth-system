@@ -18,7 +18,7 @@ function MainPage({ token, setToken, sendRequest }) {
     const validateToken = async () => {
       try {
         const userData = await sendRequest('GET', 'me')
-        setUserInfo({  ID: userData.id, userName: userData.username });
+        setUserInfo({  ID: userData.id, userName: userData.username, created_at: userData.created_at });
       } catch (err) {
         console.error('Token validation failed:', err)
         setToken(null)

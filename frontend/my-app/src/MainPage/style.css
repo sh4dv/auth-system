@@ -65,10 +65,39 @@
     margin: 0 50px;
 }
 
+.Header-settings-btn {
+    background: transparent;
+    border: 1px solid #00f90040;
+    border-radius: 6px;
+    color: #00f900;
+    cursor: pointer;
+    padding: 6px 8px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    vertical-align: middle;
+}
+
+.Header-settings-btn:hover {
+    background-color: #00f90010;
+    border-color: #00f900;
+    box-shadow: 0 0 8px rgba(0, 249, 0, 0.3);
+}
+
+.Header-settings-btn svg {
+    transform: rotate(-90deg);
+    width: 20px;
+    height: 20px;
+}
+
 .Header-title {
     color: rgb(0, 248, 25);
     font-size: 24px;
     font-weight: 600;
+    display: flex;
+    align-items: center;
 }
 .Header-username {
     color: rgb(255, 255, 255);

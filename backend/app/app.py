@@ -33,10 +33,25 @@ class User(BaseModel):
 	id: int
 	username: str
 	is_premium: int = 0
+	created_at: str = None
 
 
 class LoginRequest(BaseModel):
 	username: str
+	password: str
+
+
+class PasswordChangeRequest(BaseModel):
+	current_password: str
+	new_password: str
+	confirm_password: str
+
+
+class UsernameChangeRequest(BaseModel):
+	new_username: str
+
+
+class AccountDeletionRequest(BaseModel):
 	password: str
 
 
@@ -111,7 +126,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 
 	with get_connection() as conn:
 		row = conn.execute(
-			"SELECT id, username, is_premium FROM users WHERE username = ?",
+			"SELECT id, username, is_premium, created_at FROM users WHERE username = ?",
 			(username,),
 		).fetchone()
 	if not row:
@@ -137,7 +152,7 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 	license_count += amount
 
 	# Check license limits
-	if not is_premium and license_count >= FREE_LICENSES_LIMIT:
+	if not is_premium and license_count > FREE_LICENSES_LIMIT:
 		raise HTTPException(status_code=403, detail="Free license limit reached. Upgrade to premium for more.")
 	if amount > 1 and not is_premium:
 		raise HTTPException(status_code=403, detail="Only premium users can generate multiple licenses at once.")
@@ -154,8 +169,14 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 	if uses == 0:
 		uses = 999999 # Unlimited uses
 
+	# Generate or process license key
 	if not license_key:
-		license_key = secrets.token_hex(length)
+		# Generate random key
+		random_part = secrets.token_hex(length)
+		if not is_premium:
+			license_key = f"auth.cc-{random_part}"
+		else:
+			license_key = random_part
 	elif "*" in license_key:
 		# Replace each * with a random hex character
 		random_hex = secrets.token_hex(license_key.count("*"))  # Generate enough random chars
@@ -168,6 +189,15 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 			else:
 				result.append(char)
 		license_key = "".join(result)
+		
+		# For free users, ensure the prefix is present
+		if not is_premium and not license_key.startswith("auth.cc-"):
+			license_key = f"auth.cc-{license_key}"
+	else:
+		# Custom key without wildcards
+		if not is_premium and not license_key.startswith("auth.cc-"):
+			license_key = f"auth.cc-{license_key}"
+	
 	with get_connection() as conn:
 		# Ensure unique license key
 		row = conn.execute(
@@ -180,6 +210,10 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 		conn.execute(
 			"INSERT INTO licenses (user_id, license_key, uses) VALUES (?, ?, ?)",
 			(current.id, license_key, uses),
+		)
+		# Update global stats
+		conn.execute(
+			"UPDATE global_stats SET total_licenses_created = total_licenses_created + 1, total_licenses_active = total_licenses_active + 1"
 		)
 	return {"license_key": license_key}
 
@@ -209,6 +243,10 @@ async def delete_license(license_key: str, current: User = Depends(get_current_u
 			"DELETE FROM licenses WHERE id = ? AND user_id = ?",
 			(row["id"], current.id),
 		)
+		# Update global stats
+		conn.execute(
+			"UPDATE global_stats SET total_licenses_deleted = total_licenses_deleted + 1, total_licenses_active = total_licenses_active - 1"
+		)
 		return {"detail": "License deleted"}
 
 @app.get("/licenses/validate", tags=["licenses"])
@@ -225,6 +263,11 @@ async def validate_license(license_key: str):
 		uses = row["uses"]
 		if uses == 0:
 			raise HTTPException(status_code=403, detail="License has no uses remaining")
+		
+		# Update global stats
+		conn.execute(
+			"UPDATE global_stats SET total_license_validations = total_license_validations + 1"
+		)
 		
 		return {
 			"detail": "License is valid",
@@ -283,6 +326,10 @@ async def login(req: LoginRequest):
                 )
                 conn.commit()
                 user_id = cur.lastrowid
+                # Update global stats for new user
+                conn.execute(
+                    "UPDATE global_stats SET total_users = total_users + 1"
+                )
             except sqlite3.IntegrityError:
                 # In case multiple users try to register the same username at once
                 row = conn.execute(
@@ -321,6 +368,177 @@ async def subscribe(current: User = Depends(get_current_user)):
 @app.get("/me", response_model=User, tags=["auth"])
 async def me(current: User = Depends(get_current_user)):
 	return current
+
+
+@app.post("/auth/change-password", tags=["auth"])
+async def change_password(req: PasswordChangeRequest, current: User = Depends(get_current_user)):
+	"""Change user password after validating current password."""
+	# Validate new password
+	is_valid, error_msg = validate_password(req.new_password)
+	if not is_valid:
+		raise HTTPException(status_code=400, detail=error_msg)
+	
+	# Check passwords match
+	if req.new_password != req.confirm_password:
+		raise HTTPException(status_code=400, detail="New passwords do not match")
+	
+	with get_connection() as conn:
+		# Verify current password
+		row = conn.execute(
+			"SELECT password FROM users WHERE id = ?",
+			(current.id,),
+		).fetchone()
+		
+		if not verify_password(req.current_password, row["password"]):
+			raise HTTPException(status_code=400, detail="Current password is incorrect")
+		
+		# Update password
+		hashed = pwd_context.hash(req.new_password)
+		conn.execute(
+			"UPDATE users SET password = ? WHERE id = ?",
+			(hashed, current.id),
+		)
+	
+	return {"detail": "Password changed successfully"}
+
+
+@app.post("/auth/change-username", tags=["auth"])
+async def change_username(req: UsernameChangeRequest, current: User = Depends(get_current_user)):
+	"""Change username after checking availability."""
+	new_username = req.new_username.strip()
+	
+	# Validate username length
+	if len(new_username) < 3:
+		raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
+	
+	with get_connection() as conn:
+		# Check if username is taken
+		row = conn.execute(
+			"SELECT id FROM users WHERE username = ?",
+			(new_username,),
+		).fetchone()
+		
+		if row:
+			raise HTTPException(status_code=400, detail="Username already taken")
+		
+		# Update username
+		try:
+			conn.execute(
+				"UPDATE users SET username = ? WHERE id = ?",
+				(new_username, current.id),
+			)
+		except sqlite3.IntegrityError:
+			raise HTTPException(status_code=400, detail="Username already taken")
+	
+	# Generate new token with new username
+	access_token, expires_at = create_access_token(
+		sub=new_username,
+		minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
+	)
+	
+	return {
+		"detail": "Username changed successfully",
+		"access_token": access_token,
+		"expires_at": expires_at,
+	}
+
+
+@app.delete("/auth/delete-account", tags=["auth"])
+async def delete_account(req: AccountDeletionRequest, current: User = Depends(get_current_user)):
+	"""Delete user account and all associated licenses after password verification."""
+	with get_connection() as conn:
+		# Verify password
+		row = conn.execute(
+			"SELECT password FROM users WHERE id = ?",
+			(current.id,),
+		).fetchone()
+		
+		if not verify_password(req.password, row["password"]):
+			raise HTTPException(status_code=400, detail="Incorrect password")
+		
+		# Count licenses to be deleted
+		license_count_row = conn.execute(
+			"SELECT COUNT(*) as count FROM licenses WHERE user_id = ?",
+			(current.id,),
+		).fetchone()
+		license_count = license_count_row["count"]
+		
+		# Delete all user licenses
+		conn.execute(
+			"DELETE FROM licenses WHERE user_id = ?",
+			(current.id,),
+		)
+		
+		# Delete user
+		conn.execute(
+			"DELETE FROM users WHERE id = ?",
+			(current.id,),
+		)
+		
+		# Update global stats
+		conn.execute(
+			"UPDATE global_stats SET total_licenses_deleted = total_licenses_deleted + ?, total_licenses_active = total_licenses_active - ?",
+			(license_count, license_count),
+		)
+	
+	return {"detail": "Account deleted successfully"}
+
+
+@app.get("/stats/global", tags=["stats"])
+async def get_global_stats():
+	"""Get global statistics (updated daily)."""
+	with get_connection() as conn:
+		row = conn.execute(
+			"SELECT total_users, total_licenses_created, total_licenses_active, total_licenses_deleted, total_license_validations, last_updated FROM global_stats ORDER BY id DESC LIMIT 1"
+		).fetchone()
+		
+		if not row:
+			# Initialize if not exists
+			conn.execute(
+				"INSERT INTO global_stats (total_users, total_licenses_created, total_licenses_active, total_licenses_deleted, total_license_validations) VALUES (0, 0, 0, 0, 0)"
+			)
+			row = conn.execute(
+				"SELECT total_users, total_licenses_created, total_licenses_active, total_licenses_deleted, total_license_validations, last_updated FROM global_stats ORDER BY id DESC LIMIT 1"
+			).fetchone()
+	
+	return {
+		"total_users": row["total_users"],
+		"total_licenses_created": row["total_licenses_created"],
+		"total_licenses_active": row["total_licenses_active"],
+		"total_licenses_deleted": row["total_licenses_deleted"],
+		"total_license_validations": row["total_license_validations"],
+		"last_updated": row["last_updated"],
+	}
+
+
+@app.post("/stats/update", tags=["stats"])
+async def update_global_stats():
+	"""Update global statistics (should be called daily via cron/scheduler)."""
+	with get_connection() as conn:
+		# Count total users
+		user_count = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()["count"]
+		
+		# Count total licenses created (all time)
+		total_created = conn.execute("SELECT COUNT(*) as count FROM licenses").fetchone()["count"]
+		
+		# Count active licenses (current)
+		active_licenses = conn.execute("SELECT COUNT(*) as count FROM licenses").fetchone()["count"]
+		
+		# Get current deleted count and validations (they increment, don't recalculate)
+		current_stats = conn.execute(
+			"SELECT total_licenses_deleted, total_license_validations FROM global_stats ORDER BY id DESC LIMIT 1"
+		).fetchone()
+		
+		deleted_count = current_stats["total_licenses_deleted"] if current_stats else 0
+		validation_count = current_stats["total_license_validations"] if current_stats else 0
+		
+		# Update stats
+		conn.execute(
+			"UPDATE global_stats SET total_users = ?, total_licenses_created = ?, total_licenses_active = ?, last_updated = CURRENT_TIMESTAMP",
+			(user_count, total_created, active_licenses),
+		)
+	
+	return {"detail": "Global stats updated successfully"}
 
 
 if __name__ == "__main__":

@@ -60,16 +60,25 @@ function GenerateLicense({ sendRequest, isPremium }) {
                 <h2 className="license-title">Generate License</h2>
                 
                 <form onSubmit={handleGenerate} className="license-form">
+                    
                     <div className="form-group">
                         <label className="form-label">Custom Key (optional)</label>
                         <input
                             type="text"
                             className="form-input"
-                            placeholder="Leave empty for random or use * for wildcards"
+                            placeholder={isPremium ? "Leave empty for random or use * for wildcards" : "Leave empty for random or use * for wildcards (will be prefixed with auth.cc-)"}
                             value={licenseKey}
                             onChange={(e) => setLicenseKey(e.target.value)}
                         />
-                        <span className="form-hint">Use * for random characters (e.g., KEY-****-****)</span>
+                        <span className="form-hint">
+                            {isPremium 
+                                ? "Use * for random characters (e.g., KEY-****-****)"
+                                : "Use * for random characters (e.g., KEY-****-**** will become auth.cc-KEY-****-****)"}
+                        </span>
+                        <span className="form-hint">
+                            {!isPremium
+                                && "Your license will become: auth.cc-" + (licenseKey || "RANDOM")}
+                        </span>
                     </div>
 
                     <div className="form-row">

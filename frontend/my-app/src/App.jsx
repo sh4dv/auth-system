@@ -59,8 +59,12 @@ function App() {
   return (
     <div className='StatusBar'>
       {apiStatus != "ok" ? <h1 style={{ color: 'red' }}>Oh no! API is down. Or you just didn't turn it on.</h1> : apiStatus == 'checking' && <h1>Checking API status... please wait</h1>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {!token ? <Login sendRequest={sendRequest} setToken={setToken} /> : <MainPage token={token} setToken={setToken} sendRequest={sendRequest} />}
+      {
+       error == null && (
+      !token ? <Login sendRequest={sendRequest} 
+      setToken={setToken} /> : 
+      <MainPage token={token} setToken={setToken} sendRequest={sendRequest} />
+      )}
     </div>
   )
 }
