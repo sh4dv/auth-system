@@ -32,6 +32,8 @@ def _demo_users() -> Iterable[Tuple[str]]:
 	return (
 		("alice", "password123"),
 		("bob", "bob_destroyer"),
+		("steve", "abcd1234"),
+		("eve", "eve_hacker"),
 	)
 
 def clear_db() -> None:
@@ -41,7 +43,7 @@ def clear_db() -> None:
 
 def init_db() -> None:
 	"""Delete old tables and create new ones."""
-	clear_db()
+	# clear_db() UNCOMMENT TO RESET DB
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 	with get_connection() as conn:
 		cursor = conn.cursor()
@@ -52,6 +54,7 @@ def init_db() -> None:
 				username TEXT UNIQUE NOT NULL,
 				password TEXT NOT NULL,
 				is_premium BOOLEAN NOT NULL DEFAULT 0,
+				secret_token TEXT UNIQUE NOT NULL,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 			"""

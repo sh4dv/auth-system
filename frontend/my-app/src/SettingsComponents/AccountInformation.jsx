@@ -7,6 +7,22 @@ function AccountInformation({ userInfo, sendRequest, isPremium, setToken }) {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [licenseCount, setLicenseCount] = useState(0);
+    
+    // Secret token states
+    const [showSecretTokenModal, setShowSecretTokenModal] = useState(false);
+    const [verifyPassword, setVerifyPassword] = useState('');
+    const [secretToken, setSecretToken] = useState('');
+    const [secretTokenError, setSecretTokenError] = useState('');
+    const [secretTokenRevealed, setSecretTokenRevealed] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [tokenCopied, setTokenCopied] = useState(false);
+
+    const copyTokenToClipboard = () => {
+        navigator.clipboard.writeText(secretToken).then(() => {
+            setTokenCopied(true);
+            setTimeout(() => setTokenCopied(false), 2000);
+        });
+    };
 
     useEffect(() => {
         fetchLicenseCount();
@@ -89,6 +105,60 @@ function AccountInformation({ userInfo, sendRequest, isPremium, setToken }) {
         });
     };
 
+    const handleViewSecretToken = () => {
+        setShowSecretTokenModal(true);
+        setVerifyPassword('');
+        setSecretToken('');
+        setSecretTokenError('');
+        setSecretTokenRevealed(false);
+    };
+
+    const handleRevealSecretToken = async () => {
+        setSecretTokenError('');
+        
+        if (!verifyPassword) {
+            setSecretTokenError('Please enter your password');
+            return;
+        }
+
+        try {
+            const data = await sendRequest('GET', `auth/get-secret-token?password=${encodeURIComponent(verifyPassword)}`);
+            setSecretToken(data.secret_token);
+            setSecretTokenRevealed(true);
+        } catch (err) {
+            setSecretTokenError(err.message || 'Failed to retrieve secret token');
+        }
+    };
+
+    const closeSecretTokenModal = () => {
+        setShowSecretTokenModal(false);
+        setVerifyPassword('');
+        setSecretToken('');
+        setSecretTokenRevealed(false);
+    };
+
+    const handleResetSecretToken = async () => {
+        if (!window.confirm('Are you sure you want to reset your secret token? Your old token will no longer work for password recovery.')) {
+            return;
+        }
+
+        setSecretTokenError('');
+        setIsResetting(true);
+
+        try {
+            const data = await sendRequest('POST', 'auth/reset-secret-token', {
+                password: verifyPassword
+            });
+            setSecretToken(data.secret_token);
+            setSecretTokenError('');
+            alert('Secret token reset successfully! Please save your new token.');
+        } catch (err) {
+            setSecretTokenError(err.message || 'Failed to reset secret token');
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
     return (
         <div>
             <div className="settings-info">
@@ -160,6 +230,75 @@ function AccountInformation({ userInfo, sendRequest, isPremium, setToken }) {
                     </p>
                 )}
             </div>
+
+            <div className="settings-form-group">
+                <label className="settings-label">Secret Recovery Token</label>
+                <p style={{ fontSize: '14px', color: '#808080', marginBottom: '12px' }}>
+                    Your secret token is used to reset your password if you forget it.
+                    {' '}
+                    <span 
+                        className="view-token-link"
+                        onClick={handleViewSecretToken}
+                    >
+                        View token
+                    </span>
+                </p>
+            </div>
+
+            {/* Secret Token Modal */}
+            {showSecretTokenModal && (
+                <div className="modal-overlay" onClick={closeSecretTokenModal}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="modal-close" onClick={closeSecretTokenModal}>×</button>
+                        <h3>View Secret Token</h3>
+                        
+                        {!secretTokenRevealed ? (
+                            <>
+                                <p className="modal-description">
+                                    Enter your password to view your secret recovery token.
+                                </p>
+                                <div className="modal-form-group">
+                                    <label>Password</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Enter your password"
+                                        value={verifyPassword}
+                                        onChange={(e) => setVerifyPassword(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleRevealSecretToken()}
+                                    />
+                                </div>
+                                {secretTokenError && <p className="modal-error">{secretTokenError}</p>}
+                                <button className="modal-btn" onClick={handleRevealSecretToken}>
+                                    Reveal Token
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <p className="modal-description">
+                                    This is your secret recovery token. Keep it safe!
+                                </p>
+                                <div className="secret-token-display">
+                                    <code className="secret-token-blur">{secretToken}</code>
+                                    <button className="copy-token-btn" onClick={copyTokenToClipboard}>
+                                        {tokenCopied ? '✓ Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+                                <p className="modal-note">
+                                    Hover over the token to reveal it. You'll need this token to reset your password if you forget it.
+                                </p>
+                                <button 
+                                    className="modal-btn-secondary" 
+                                    onClick={handleResetSecretToken}
+                                    disabled={isResetting}
+                                    style={{ marginTop: '16px' }}
+                                >
+                                    {isResetting ? 'Resetting Token...' : 'Reset Token'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
