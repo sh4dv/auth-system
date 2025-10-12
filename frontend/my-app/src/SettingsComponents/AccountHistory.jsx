@@ -27,13 +27,15 @@ function AccountHistory({ sendRequest }) {
         const actionMap = {
             'generate_license': `Generated ${details || 'license'}`,
             'delete_license': `Deleted ${details || 'license'}`,
+            'register': details || 'Registered new account',
             'login': 'Logged into account',
-            'change_name': 'Changed username',
-            'reset_password': 'Reset password',
-            'reset_token': 'Reset secret token',
-            'view_token': 'Viewed secret token'
+            'change_name': details || 'Changed username',
+            'reset_password': 'Changed password',
+            'reset_secret_token': 'Reset secret token',
+            'view_secret_token': 'Viewed secret token',
+            'upgrade_premium': 'Upgraded to premium'
         };
-        return actionMap[action] || 'Unknown action';
+        return actionMap[action] || `Unknown action: ${action}`;
     };
 
     const getActionIcon = (action) => {
@@ -46,6 +48,13 @@ function AccountHistory({ sendRequest }) {
             'delete_license': (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                </svg>
+            ),
+            'register': (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                    <circle cx="8.5" cy="7" r="4" />
+                    <path d="M20 8v6M23 11h-6" />
                 </svg>
             ),
             'login': (
@@ -65,19 +74,30 @@ function AccountHistory({ sendRequest }) {
                     <path d="M7 11V7a5 5 0 0110 0v4" />
                 </svg>
             ),
-            'reset_token': (
+            'reset_secret_token': (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2" />
                 </svg>
             ),
-            'view_token': (
+            'view_secret_token': (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                 </svg>
+            ),
+            'upgrade_premium': (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
             )
         };
-        return iconMap[action] || null;
+        return iconMap[action] || (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+            </svg>
+        );
     };
 
     const formatTime = (timestamp) => {

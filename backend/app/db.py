@@ -11,17 +11,18 @@ DB_PATH = BASE_DIR / "data.db"
 
 def get_connection() -> sqlite3.Connection:
 	"""Return a SQLite connection with row factory configured for dict-like rows."""
-	conn = sqlite3.connect(DB_PATH)
+	conn = sqlite3.connect(DB_PATH, timeout=10.0)  # Add timeout to prevent indefinite locks
 	conn.row_factory = sqlite3.Row
 	return conn
 
 
 def _seed_users(cursor: sqlite3.Cursor) -> None:
 	"""Populate the users table with a couple of demo accounts if it's empty."""
+	import secrets
 	cursor.executemany(
 		"""
-		INSERT INTO users (username, password)
-		VALUES (?, ?)
+		INSERT INTO users (username, password, secret_token)
+		VALUES (?, ?, ?)
 		"""
 	,
 		_demo_users(),
@@ -29,11 +30,12 @@ def _seed_users(cursor: sqlite3.Cursor) -> None:
 
 
 def _demo_users() -> Iterable[Tuple[str]]:
+	import secrets
 	return (
-		("alice", "password123"),
-		("bob", "bob_destroyer"),
-		("steve", "abcd1234"),
-		("eve", "eve_hacker"),
+		("alice", "password123", secrets.token_hex(16)),
+		("bob", "bob_destroyer", secrets.token_hex(16)),
+		("steve", "abcd1234", secrets.token_hex(16)),
+		("eve", "eve_hacker", secrets.token_hex(16)),
 	)
 
 def clear_db() -> None:
@@ -43,7 +45,7 @@ def clear_db() -> None:
 
 def init_db() -> None:
 	"""Delete old tables and create new ones."""
-	# clear_db() UNCOMMENT TO RESET DB
+	clear_db()  # Uncommented to reset DB with new schema
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 	with get_connection() as conn:
 		cursor = conn.cursor()

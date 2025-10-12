@@ -490,9 +490,6 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
-<<<<<<< HEAD
-/* Modal Styles for Account Information */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -712,7 +709,7 @@
 
 .view-token-link:hover {
     color: #8dffc0;
-=======
+}
 /* Account History Styles */
 .account-history-container {
     display: flex;
@@ -969,5 +966,4 @@
         gap: 8px;
         align-items: center;
     }
->>>>>>> feat/sidebar
 }

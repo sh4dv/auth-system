@@ -93,6 +93,7 @@ def log_account_history(user_id: int, action_type: str, action_details: str = No
 			"INSERT INTO account_history (user_id, action_type, action_details) VALUES (?, ?, ?)",
 			(user_id, action_type, action_details),
 		)
+		conn.commit()  # Explicitly commit to ensure the transaction is completed
 
 
 
@@ -278,11 +279,11 @@ async def delete_license(license_key: str, current: User = Depends(get_current_u
 		conn.execute(
 			"UPDATE global_stats SET total_licenses_deleted = total_licenses_deleted + 1, total_licenses_active = total_licenses_active - 1"
 		)
-		
-		# Log license deletion
-		log_account_history(current.id, "delete_license", "1 license")
-		
-		return {"detail": "License deleted"}
+	
+	# Log license deletion (outside the connection context to avoid database lock)
+	log_account_history(current.id, "delete_license", "1 license")
+	
+	return {"detail": "License deleted"}
 
 @app.get("/licenses/validate", tags=["licenses"])
 async def validate_license(license_key: str):
@@ -389,14 +390,7 @@ async def login(req: LoginRequest):
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
     )
     
-<<<<<<< HEAD
     response = {
-=======
-    # Log login action
-    log_account_history(user_id, "login", None)
-    
-    return {
->>>>>>> feat/sidebar
         "access_token": access_token,
         "token_type": "bearer",
         "expires_at": expires_at,
@@ -406,6 +400,11 @@ async def login(req: LoginRequest):
     if is_new_user:
         response["secret_token"] = secret_token
         response["is_new_user"] = True
+        # Log new user registration
+        log_account_history(user_id, "register", f"New account created")
+    else:
+        # Log existing user login
+        log_account_history(user_id, "login", None)
     
     return response
 
@@ -417,6 +416,10 @@ async def subscribe(current: User = Depends(get_current_user)):
 			"UPDATE users SET is_premium = 1 WHERE id = ?",
 			(current.id,),
 		)
+	
+	# Log premium subscription
+	log_account_history(current.id, "upgrade_premium", None)
+	
 	# No payment gateway yet, just a placeholder
 	return {"detail": "User upgraded to premium"}
 
@@ -674,6 +677,9 @@ async def get_secret_token(password: str, current: User = Depends(get_current_us
 		if not verify_password(password, row["password"]):
 			raise HTTPException(status_code=400, detail="Incorrect password")
 	
+	# Log secret token view
+	log_account_history(current.id, "view_secret_token", None)
+	
 	return {"secret_token": row["secret_token"]}
 
 
@@ -702,6 +708,9 @@ async def reset_secret_token(req: ResetSecretTokenRequest, current: User = Depen
 		except sqlite3.IntegrityError:
 			# Extremely unlikely but handle token collision
 			raise HTTPException(status_code=500, detail="Failed to generate unique token, please try again")
+	
+	# Log secret token reset
+	log_account_history(current.id, "reset_secret_token", None)
 	
 	return {
 		"detail": "Secret token reset successfully",
