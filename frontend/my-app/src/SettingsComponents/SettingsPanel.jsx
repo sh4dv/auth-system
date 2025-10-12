@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './SettingsPanel.css';
 import AccountInformation from './AccountInformation';
+import AccountHistory from './AccountHistory';
 import PasswordReset from './PasswordReset';
 import PremiumSection from './PremiumSection';
 import AccountDeletion from './AccountDeletion';
@@ -26,6 +27,13 @@ function SettingsPanel({ isOpen, onClose, userInfo, sendRequest, isPremium, setI
             hint: 'View and manage your account details',
             component: AccountInformation,
             props: { userInfo, sendRequest, isPremium, setToken }
+        },
+        {
+            id: 'history',
+            title: 'Account History',
+            hint: 'View your recent account activity',
+            component: AccountHistory,
+            props: { sendRequest }
         },
         {
             id: 'password',
