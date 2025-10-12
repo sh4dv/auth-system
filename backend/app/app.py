@@ -5,7 +5,7 @@ import secrets
 import sqlite3
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -51,6 +51,21 @@ class UsernameChangeRequest(BaseModel):
 	new_username: str
 
 
+class PasswordResetRequest(BaseModel):
+	username: str
+	secret_token: str
+	new_password: str
+
+
+class VerifySecretTokenRequest(BaseModel):
+	username: str
+	secret_token: str
+
+
+class ResetSecretTokenRequest(BaseModel):
+	password: str
+
+
 class AccountDeletionRequest(BaseModel):
 	password: str
 
@@ -59,6 +74,8 @@ class Token(BaseModel):
 	access_token: str
 	token_type: str = "bearer"
 	expires_at: datetime
+	is_new_user: Optional[bool] = None
+	secret_token: Optional[str] = None
 
 # Config (override via environment in production)
 SECRET_KEY = os.getenv("SECRET_KEY", "_DEV_CHANGE_ME_")
@@ -310,6 +327,9 @@ async def login(req: LoginRequest):
     if len(req.username) < 3:
         raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
     
+    secret_token = None
+    is_new_user = False
+    
     with get_connection() as conn:
         row = conn.execute(
             "SELECT id, username, password FROM users WHERE username = ?",
@@ -319,10 +339,12 @@ async def login(req: LoginRequest):
         if not row:
             # Auto-register new user
             hashed = pwd_context.hash(req.password)
+            secret_token = secrets.token_hex(16)  # Generate 32-char hex token
+            is_new_user = True
             try:
                 cur = conn.execute(
-                    "INSERT INTO users (username, password) VALUES (?, ?)",
-                    (req.username, hashed),
+                    "INSERT INTO users (username, password, secret_token) VALUES (?, ?, ?)",
+                    (req.username, hashed, secret_token),
                 )
                 conn.commit()
                 user_id = cur.lastrowid
@@ -348,11 +370,19 @@ async def login(req: LoginRequest):
         sub=req.username,
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
     )
-    return {
+    
+    response = {
         "access_token": access_token,
         "token_type": "bearer",
         "expires_at": expires_at,
     }
+    
+    # Include secret token only for new registrations
+    if is_new_user:
+        response["secret_token"] = secret_token
+        response["is_new_user"] = True
+    
+    return response
 
 @app.post("/subscribe", tags=["subscriptions"])
 async def subscribe(current: User = Depends(get_current_user)):
@@ -482,6 +512,102 @@ async def delete_account(req: AccountDeletionRequest, current: User = Depends(ge
 		)
 	
 	return {"detail": "Account deleted successfully"}
+
+
+@app.post("/auth/verify-secret-token", tags=["auth"])
+async def verify_secret_token(req: VerifySecretTokenRequest):
+	"""Verify that the username and secret token match."""
+	with get_connection() as conn:
+		row = conn.execute(
+			"SELECT id, secret_token FROM users WHERE username = ?",
+			(req.username,),
+		).fetchone()
+		
+		if not row:
+			raise HTTPException(status_code=404, detail="User not found")
+		
+		if row["secret_token"] != req.secret_token:
+			raise HTTPException(status_code=400, detail="Invalid secret token")
+	
+	return {"detail": "Secret token verified successfully"}
+
+
+@app.post("/auth/reset-password", tags=["auth"])
+async def reset_password(req: PasswordResetRequest):
+	"""Reset user password using username and secret token."""
+	# Validate new password
+	is_valid, error_msg = validate_password(req.new_password)
+	if not is_valid:
+		raise HTTPException(status_code=400, detail=error_msg)
+	
+	with get_connection() as conn:
+		# Verify username and secret token
+		row = conn.execute(
+			"SELECT id, secret_token FROM users WHERE username = ?",
+			(req.username,),
+		).fetchone()
+		
+		if not row:
+			raise HTTPException(status_code=404, detail="User not found")
+		
+		if row["secret_token"] != req.secret_token:
+			raise HTTPException(status_code=400, detail="Invalid secret token")
+		
+		# Update password
+		hashed = pwd_context.hash(req.new_password)
+		conn.execute(
+			"UPDATE users SET password = ? WHERE id = ?",
+			(hashed, row["id"]),
+		)
+	
+	return {"detail": "Password reset successfully"}
+
+
+@app.get("/auth/get-secret-token", tags=["auth"])
+async def get_secret_token(password: str, current: User = Depends(get_current_user)):
+	"""Get the user's secret token after password verification."""
+	with get_connection() as conn:
+		row = conn.execute(
+			"SELECT password, secret_token FROM users WHERE id = ?",
+			(current.id,),
+		).fetchone()
+		
+		if not verify_password(password, row["password"]):
+			raise HTTPException(status_code=400, detail="Incorrect password")
+	
+	return {"secret_token": row["secret_token"]}
+
+
+@app.post("/auth/reset-secret-token", tags=["auth"])
+async def reset_secret_token(req: ResetSecretTokenRequest, current: User = Depends(get_current_user)):
+	"""Reset/regenerate the user's secret token after password verification."""
+	with get_connection() as conn:
+		# Verify password
+		row = conn.execute(
+			"SELECT password FROM users WHERE id = ?",
+			(current.id,),
+		).fetchone()
+		
+		if not verify_password(req.password, row["password"]):
+			raise HTTPException(status_code=400, detail="Incorrect password")
+		
+		# Generate new secret token
+		new_secret_token = secrets.token_hex(16)
+		
+		# Update with new token
+		try:
+			conn.execute(
+				"UPDATE users SET secret_token = ? WHERE id = ?",
+				(new_secret_token, current.id),
+			)
+		except sqlite3.IntegrityError:
+			# Extremely unlikely but handle token collision
+			raise HTTPException(status_code=500, detail="Failed to generate unique token, please try again")
+	
+	return {
+		"detail": "Secret token reset successfully",
+		"secret_token": new_secret_token
+	}
 
 
 @app.get("/stats/global", tags=["stats"])

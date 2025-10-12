@@ -58,7 +58,7 @@ function App() {
 
   return (
     <div className='StatusBar'>
-      {apiStatus != "ok" ? <h1 style={{ color: 'red' }}>Oh no! API is down. Or you just didn't turn it on.</h1> : apiStatus == 'checking' && <h1>Checking API status... please wait</h1>}
+      {apiStatus != "ok" ? <h1 style={{ color: 'red' }}>We're having some issues connecting to the API. Please try again later.</h1> : apiStatus == 'checking' && <h1>Checking API status... please wait</h1>}
       {
        error == null && (
       !token ? <Login sendRequest={sendRequest} 
