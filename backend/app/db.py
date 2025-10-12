@@ -45,7 +45,7 @@ def clear_db() -> None:
 
 def init_db() -> None:
 	"""Delete old tables and create new ones."""
-	clear_db()  # Uncommented to reset DB with new schema
+	# clear_db()  # Uncommented to reset DB with new schema
 	DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 	with get_connection() as conn:
 		cursor = conn.cursor()

@@ -7,6 +7,7 @@ import GenerateLicense from './Views/GenerateLicense.jsx'
 import DeleteLicense from './Views/DeleteLicense.jsx'
 import CheckLicense from './Views/CheckLicense.jsx'
 import IntegrateSystem from './Views/IntegrateSystem.jsx'
+import ChatBot from './ChatBot.jsx'
 
 function MainPage({ token, setToken, sendRequest }) {
   const [userInfo, setUserInfo] = useState({});
@@ -40,7 +41,7 @@ function MainPage({ token, setToken, sendRequest }) {
           {viewState === 'delete-license' && <DeleteLicense sendRequest={sendRequest} />}
           {viewState === 'check-license' && <CheckLicense sendRequest={sendRequest} />}
           {viewState === 'integrate-system' && <IntegrateSystem />}
-          
+          <ChatBot sendRequest={sendRequest} />
         </>
       ) : (
         <p>Please log in.</p>

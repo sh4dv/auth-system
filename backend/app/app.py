@@ -10,8 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
+from openai import OpenAI
+from dotenv import load_dotenv
 
 from db import get_connection, init_db
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI(title="Auth System API", version="0.2.0")
 FREE_LICENSES_LIMIT = 3 # Maximum free licenses per user
@@ -84,6 +89,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+# Initialize OpenAI client for DeepSeek
+deepseek_client = OpenAI(
+	api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+	base_url="https://api.deepseek.com"
+)
+
+
+class ChatRequest(BaseModel):
+	message: str
 
 
 def log_account_history(user_id: int, action_type: str, action_details: str = None) -> None:
@@ -713,9 +728,57 @@ async def reset_secret_token(req: ResetSecretTokenRequest, current: User = Depen
 	log_account_history(current.id, "reset_secret_token", None)
 	
 	return {
-		"detail": "Secret token reset successfully",
+		"detail": "Secret token verified successfully",
 		"secret_token": new_secret_token
 	}
+
+
+@app.post("/chat", tags=["chat"])
+async def chat_with_ai(req: ChatRequest, current: User = Depends(get_current_user)):
+	"""Chat with AI assistant powered by DeepSeek."""
+	try:
+		system_prompt = """You are a helpful AI assistant for Auth.cc - a license key management and authentication system.
+		
+Your role is to help users with:
+- Understanding how to use the license system
+- Generating and managing license keys
+- Integrating the authentication system into their projects
+- Troubleshooting common issues
+- Explaining premium features and benefits
+
+Keep responses concise, friendly, and helpful. Focus on practical solutions. If users ask about technical integration, provide clear step-by-step guidance.
+
+Key features to mention when relevant:
+- Free users get up to 3 licenses with 'auth.cc-' prefix
+- Premium users get unlimited licenses and custom key generation
+- Users can check license validity by sending GET request to our endpoint http://localhost:8000/licenses/validate, adding license key as a query parameter like this {"license_key": LICENSE_KEY}
+- When validating license: status code 200 means valid, 403 means no uses left, 404 means not found/invalid
+- When validating a license, the response will include remaining uses or indicate if it's unlimited
+- Secret tokens are used for password recovery
+
+Be positive, professional, and encouraging. Keep responses brief (2-3 short paragraphs maximum)."""
+
+		response = deepseek_client.chat.completions.create(
+			model="deepseek-chat",
+			messages=[
+				{"role": "system", "content": system_prompt},
+				{"role": "user", "content": req.message}
+			],
+			max_tokens=500,
+			temperature=0.7,
+		)
+		
+		ai_message = response.choices[0].message.content
+		
+		# Log chat interaction
+		log_account_history(current.id, "chat_ai", f"Asked: {req.message[:50]}...")
+		
+		return {
+			"response": ai_message,
+			"model": "deepseek-chat"
+		}
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
 
 @app.get("/stats/global", tags=["stats"])
