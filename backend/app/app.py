@@ -69,6 +69,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
+def log_account_history(user_id: int, action_type: str, action_details: str = None) -> None:
+	"""Log user action to account history."""
+	with get_connection() as conn:
+		conn.execute(
+			"INSERT INTO account_history (user_id, action_type, action_details) VALUES (?, ?, ?)",
+			(user_id, action_type, action_details),
+		)
+
+
 
 @app.on_event("startup")
 def on_startup() -> None:
@@ -215,6 +224,11 @@ async def generate_license(current: User = Depends(get_current_user), license_ke
 		conn.execute(
 			"UPDATE global_stats SET total_licenses_created = total_licenses_created + 1, total_licenses_active = total_licenses_active + 1"
 		)
+	
+	# Log license generation
+	details = f"{amount} license{'s' if amount != 1 else ''}"
+	log_account_history(current.id, "generate_license", details)
+	
 	return {"license_key": license_key}
 
 @app.get("/licenses/list", tags=["licenses"])
@@ -247,6 +261,10 @@ async def delete_license(license_key: str, current: User = Depends(get_current_u
 		conn.execute(
 			"UPDATE global_stats SET total_licenses_deleted = total_licenses_deleted + 1, total_licenses_active = total_licenses_active - 1"
 		)
+		
+		# Log license deletion
+		log_account_history(current.id, "delete_license", "1 license")
+		
 		return {"detail": "License deleted"}
 
 @app.get("/licenses/validate", tags=["licenses"])
@@ -348,6 +366,10 @@ async def login(req: LoginRequest):
         sub=req.username,
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
     )
+    
+    # Log login action
+    log_account_history(user_id, "login", None)
+    
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -368,6 +390,74 @@ async def subscribe(current: User = Depends(get_current_user)):
 @app.get("/me", response_model=User, tags=["auth"])
 async def me(current: User = Depends(get_current_user)):
 	return current
+
+
+@app.get("/account/history", tags=["account"])
+async def get_account_history(current: User = Depends(get_current_user), limit: int = 5):
+	"""Get user's recent account actions, grouped by consecutive similar actions."""
+	if limit < 1 or limit > 50:
+		limit = 5
+	
+	with get_connection() as conn:
+		# Get all recent actions for the user
+		rows = conn.execute(
+			"""
+			SELECT action_type, action_details, created_at 
+			FROM account_history 
+			WHERE user_id = ? 
+			ORDER BY created_at DESC 
+			LIMIT 100
+			""",
+			(current.id,),
+		).fetchall()
+	
+	if not rows:
+		return []
+	
+	# Group consecutive similar actions
+	grouped = []
+	current_group = None
+	
+	for row in rows:
+		action_type = row["action_type"]
+		action_details = row["action_details"]
+		created_at = row["created_at"]
+		
+		# Create a unique key for grouping (action_type + details)
+		group_key = f"{action_type}:{action_details}"
+		
+		if current_group and current_group["key"] == group_key:
+			# Same action type and details, increment count
+			current_group["count"] += 1
+		else:
+			# Different action, save current group and start new one
+			if current_group:
+				grouped.append({
+					"action": current_group["action_type"],
+					"details": current_group["action_details"],
+					"timestamp": current_group["timestamp"],
+					"count": current_group["count"]
+				})
+			
+			current_group = {
+				"key": group_key,
+				"action_type": action_type,
+				"action_details": action_details,
+				"timestamp": created_at,
+				"count": 1
+			}
+	
+	# Don't forget the last group
+	if current_group:
+		grouped.append({
+			"action": current_group["action_type"],
+			"details": current_group["action_details"],
+			"timestamp": current_group["timestamp"],
+			"count": current_group["count"]
+		})
+	
+	# Return only the requested limit
+	return grouped[:limit]
 
 
 @app.post("/auth/change-password", tags=["auth"])
@@ -399,6 +489,9 @@ async def change_password(req: PasswordChangeRequest, current: User = Depends(ge
 			(hashed, current.id),
 		)
 	
+	# Log password reset
+	log_account_history(current.id, "reset_password", None)
+	
 	return {"detail": "Password changed successfully"}
 
 
@@ -429,6 +522,9 @@ async def change_username(req: UsernameChangeRequest, current: User = Depends(ge
 			)
 		except sqlite3.IntegrityError:
 			raise HTTPException(status_code=400, detail="Username already taken")
+	
+	# Log username change
+	log_account_history(current.id, "change_name", f"Changed to {new_username}")
 	
 	# Generate new token with new username
 	access_token, expires_at = create_access_token(

@@ -81,6 +81,28 @@ def init_db() -> None:
 			)
 			"""
 		)
+		cursor.execute(
+			"""
+			CREATE TABLE IF NOT EXISTS account_history (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER NOT NULL,
+				action_type TEXT NOT NULL,
+				action_details TEXT,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+			)
+			"""
+		)
+		cursor.execute(
+			"""
+			CREATE INDEX IF NOT EXISTS idx_account_history_user_id ON account_history(user_id)
+			"""
+		)
+		cursor.execute(
+			"""
+			CREATE INDEX IF NOT EXISTS idx_account_history_created_at ON account_history(created_at)
+			"""
+		)
 		# Initialize global_stats if empty
 		cursor.execute("SELECT COUNT(*) as count FROM global_stats")
 		if cursor.fetchone()["count"] == 0:
