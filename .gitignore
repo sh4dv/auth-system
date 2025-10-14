@@ -13,3 +13,6 @@ backend/app/data.db
 node_modules/
 dist/
 build/
+
+# MacOS
+.DS_Store

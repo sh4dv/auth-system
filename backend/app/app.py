@@ -96,7 +96,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 # Initialize OpenAI client for DeepSeek
 deepseek_client = OpenAI(
@@ -107,6 +107,7 @@ deepseek_client = OpenAI(
 
 class ChatRequest(BaseModel):
 	message: str
+	saveToHistory: bool = True
 
 
 def log_account_history(user_id: int, action_type: str, action_details: str = None) -> None:
@@ -185,7 +186,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 
 
 @app.post("/licenses/generate", tags=["licenses"])
-@limiter.limit("10/minute")  # 10 license generations per minute per IP
+@limiter.limit("50/minute")  # 10 license generations per minute per IP
 async def generate_license(request: Request, current: User = Depends(get_current_user), license_key: str = None, length: int = 16, uses: int = 1, amount: int = 1):
 	"""Generate a new license key, replace * with random chars."""
 	# Check user limits
@@ -309,12 +310,95 @@ async def delete_license(license_key: str, current: User = Depends(get_current_u
 	
 	return {"detail": "License deleted"}
 
+
+class BatchDeleteRequest(BaseModel):
+	license_keys: List[str]
+
+
+@app.post("/licenses/delete-batch", tags=["licenses"])
+async def delete_licenses_batch(req: BatchDeleteRequest, current: User = Depends(get_current_user)):
+	"""Delete multiple licenses in a single request."""
+	if not req.license_keys:
+		raise HTTPException(status_code=400, detail="No license keys provided")
+	
+	if len(req.license_keys) > 1000:
+		raise HTTPException(status_code=400, detail="Cannot delete more than 1000 licenses at once")
+	
+	deleted_count = 0
+	not_found = []
+	
+	with get_connection() as conn:
+		for license_key in req.license_keys:
+			# Check if license exists and belongs to user
+			row = conn.execute(
+				"SELECT id FROM licenses WHERE license_key = ? AND user_id = ?",
+				(license_key, current.id),
+			).fetchone()
+			
+			if row:
+				# Delete the license
+				conn.execute(
+					"DELETE FROM licenses WHERE id = ? AND user_id = ?",
+					(row["id"], current.id),
+				)
+				deleted_count += 1
+			else:
+				not_found.append(license_key)
+		
+		# Update global stats
+		if deleted_count > 0:
+			conn.execute(
+				"UPDATE global_stats SET total_licenses_deleted = total_licenses_deleted + ?, total_licenses_active = total_licenses_active - ?",
+				(deleted_count, deleted_count),
+			)
+	
+	# Log batch deletion
+	if deleted_count > 0:
+		log_account_history(current.id, "delete_license", f"{deleted_count} license{'s' if deleted_count != 1 else ''}")
+	
+	return {
+		"detail": f"Successfully deleted {deleted_count} license(s)",
+		"deleted_count": deleted_count,
+		"not_found": not_found if not_found else None
+	}
+
 @app.get("/licenses/validate", tags=["licenses"])
-async def validate_license(license_key: str):
-	"""Validate a license key publicly (no authentication required)."""
+@limiter.limit("100/minute")  # 100 license validations per minute per IP
+async def validate_license(
+	request: Request, 
+	license_key: str, 
+	check_only: bool = False,
+	token: Optional[str] = Depends(oauth2_scheme)
+):
+	"""Validate a license key publicly (no authentication required).
+	
+	Args:
+		license_key: The license key to validate
+		check_only: If True, only checks validity without decrementing uses. 
+		           Only works if authenticated and user owns the license.
+		token: Optional JWT token for authenticated requests
+	"""
+	# Determine if user is authenticated and get user info
+	current_user = None
+	if token:
+		try:
+			payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+			username: str = payload.get("sub")
+			if username:
+				with get_connection() as conn:
+					user_row = conn.execute(
+						"SELECT id, username FROM users WHERE username = ?",
+						(username,),
+					).fetchone()
+					if user_row:
+						current_user = {"id": user_row["id"], "username": user_row["username"]}
+		except JWTError:
+			# Invalid token, treat as unauthenticated
+			pass
+	
 	with get_connection() as conn:
 		row = conn.execute(
-			"SELECT id, uses FROM licenses WHERE license_key = ?",
+			"SELECT id, uses, user_id FROM licenses WHERE license_key = ?",
 			(license_key,),
 		).fetchone()
 		if not row:
@@ -323,6 +407,25 @@ async def validate_license(license_key: str):
 		uses = row["uses"]
 		if uses == 0:
 			raise HTTPException(status_code=403, detail="License has no uses remaining")
+		
+		# check_only only works if:
+		# 1. User is authenticated
+		# 2. User owns the license
+		# Otherwise, always decrement uses
+		can_check_only = (
+			check_only and 
+			current_user is not None and 
+			row["user_id"] == current_user["id"]
+		)
+		
+		# Decrement uses if not in check-only mode and not unlimited
+		if not can_check_only and uses != 999999:
+			new_uses = uses - 1
+			conn.execute(
+				"UPDATE licenses SET uses = ? WHERE id = ?",
+				(new_uses, row["id"]),
+			)
+			uses = new_uses
 		
 		# Update global stats
 		conn.execute(
@@ -782,8 +885,9 @@ Be positive, professional, and encouraging. Keep responses brief (2-3 short para
 		
 		ai_message = response.choices[0].message.content
 		
-		# Log chat interaction
-		log_account_history(current.id, "chat_ai", f"Asked: {req.message[:50]}...")
+		# Log chat interaction only if requested
+		if req.saveToHistory:
+			log_account_history(current.id, "chat_ai", f"Asked: {req.message[:50]}...")
 		
 		return {
 			"response": ai_message,

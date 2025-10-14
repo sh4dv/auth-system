@@ -20,7 +20,7 @@ function CheckLicense({ sendRequest }) {
         setResult(null);
 
         try {
-            const data = await sendRequest('GET', `licenses/validate?license_key=${encodeURIComponent(licenseKey)}`);
+            const data = await sendRequest('GET', `licenses/validate?license_key=${encodeURIComponent(licenseKey)}&check_only=true`);
             setResult({
                 valid: true,
                 message: data.detail,

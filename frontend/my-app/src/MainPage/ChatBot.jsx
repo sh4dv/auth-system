@@ -22,7 +22,10 @@ function ChatBot({ sendRequest }) {
     setIsLoading(true)
 
     try {
-      const response = await sendRequest('POST', 'chat', { message: userMessage })
+      const response = await sendRequest('POST', 'chat', { 
+        message: userMessage,
+        saveToHistory: false
+      })
       // Replace chat with new conversation (max 2 messages)
       setChat([
         { role: 'user', content: userMessage },
