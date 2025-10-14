@@ -30,7 +30,7 @@ A modern, full-stack authentication and license management system with an AI-pow
 - **Premium Badge**: Visual distinction for premium accounts
 
 ### 🤖 AI Chat Assistant
-- **OpenAI Integration**: Built-in AI chatbot powered by deepseek-v3
+- **DEEPSEEK Integration**: Built-in AI chatbot powered by deepseek-v3
 - **Context-Aware**: Get help with system features and troubleshooting
 - **Real-time Responses**: Interactive chat interface
 
@@ -82,7 +82,7 @@ auth-system/
 
 - **Python 3.11+** for the backend
 - **Node.js 18+** for the frontend
-- **OpenAI API Key** (for chatbot functionality)
+- **DEEPSEEK API Key** (for chatbot functionality)
 
 ### Backend Setup
 
@@ -179,7 +179,7 @@ auth-system/
 - **Passlib & Bcrypt** - Password hashing
 - **Python-JOSE** - JWT token handling
 - **SlowAPI** - Rate limiting middleware
-- **OpenAI API** - AI chatbot integration
+- **DEEPSEEK API** - AI chatbot integration
 - **Uvicorn** - ASGI server
 
 ### Frontend
