@@ -90,7 +90,7 @@ function GenerateLicense({ sendRequest, isPremium }) {
                                 min="4"
                                 max="64"
                                 value={length}
-                                onChange={(e) => setLength(e.target.value)}
+                                onChange={(e) => setLength(parseInt(e.target.value) || 16)}
                                 disabled={licenseKey.length > 0}
                                 required
                             />
@@ -104,7 +104,7 @@ function GenerateLicense({ sendRequest, isPremium }) {
                                 className="form-input"
                                 min="0"
                                 value={uses}
-                                onChange={(e) => setUses(e.target.value)}
+                                onChange={(e) => setUses(parseInt(e.target.value) || 0)}
                                 required
                             />
                             <span className="form-hint">0 = unlimited</span>
@@ -117,11 +117,14 @@ function GenerateLicense({ sendRequest, isPremium }) {
                             type="number"
                             className="form-input"
                             min="1"
-                            max="100"
+                            max="1000"
                             value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
+                            onChange={(e) => setAmount(parseInt(e.target.value) || 1)}
                             required
                         />
+                        {!isPremium && (
+                            <span className="form-hint">Premium required for multiple licenses</span>
+                        )}
                     </div>
 
                     {error && <div className="error-message">{error}</div>}

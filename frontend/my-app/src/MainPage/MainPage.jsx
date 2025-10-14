@@ -37,7 +37,7 @@ function MainPage({ token, setToken, sendRequest }) {
           <Header token={token} setToken={setToken} userInfo={userInfo} sendRequest={sendRequest} isPremium={isPremium} setIsPremium={setIsPremium} />
           <ViewsHandler viewState={viewState} setViewState={setViewState} />
           {viewState === 'my-licenses' && <MyLicenses sendRequest={sendRequest} />}
-          {viewState === 'generate-license' && <GenerateLicense sendRequest={sendRequest} />}
+          {viewState === 'generate-license' && <GenerateLicense sendRequest={sendRequest} isPremium={isPremium} />}
           {viewState === 'delete-license' && <DeleteLicense sendRequest={sendRequest} />}
           {viewState === 'check-license' && <CheckLicense sendRequest={sendRequest} />}
           {viewState === 'integrate-system' && <IntegrateSystem />}

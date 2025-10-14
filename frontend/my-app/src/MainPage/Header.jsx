@@ -38,9 +38,9 @@ function Header({ token, setToken, userInfo, sendRequest, isPremium, setIsPremiu
             <path d="M12 15l-5-5h10l-5 5z" />
           </svg>
         </button>
-        Logged in as:
+        Logged in as: ‎ 
         <span className="RevealWrapper">
-        <span className="Header-username"> {userInfo?.userName || 'Unknown'} </span>
+        <span className="Header-username">{userInfo?.userName || 'Unknown'} </span>
         <span className="Header-secret" aria-hidden="true"> (ID: {userInfo?.ID ?? '—'})</span>
         </span>
       </span>
