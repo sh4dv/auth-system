@@ -30,7 +30,11 @@ function AccountDeletion({ sendRequest, setToken }) {
             setToken(null);
             alert('Your account has been permanently deleted.');
         } catch (err) {
-            setError(err.message || 'Failed to delete account');
+            if (err.status === 429) {
+                setError('Too many attempts. Please try again later.');
+            } else {
+                setError(err.message || 'Failed to delete account');
+            }
             setIsDeleting(false);
         }
     };

@@ -3,22 +3,25 @@ import os
 from datetime import datetime, timedelta
 import secrets
 import sqlite3
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from openai import OpenAI
-from dotenv import load_dotenv
 
 from db import get_connection, init_db
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Auth System API", version="0.2.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 FREE_LICENSES_LIMIT = 3 # Maximum free licenses per user
 
 
@@ -177,7 +180,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 
 
 @app.post("/licenses/generate", tags=["licenses"])
-async def generate_license(current: User = Depends(get_current_user), license_key: str = None, length: int = 16, uses: int = 1, amount: int = 1):
+@limiter.limit("10/minute")  # 10 license generations per minute per IP
+async def generate_license(request: Request, current: User = Depends(get_current_user), license_key: str = None, length: int = 16, uses: int = 1, amount: int = 1):
 	"""Generate a new license key, replace * with random chars."""
 	# Check user limits
 	with get_connection() as conn:
@@ -351,7 +355,8 @@ async def check_username(username: str):
 	}
 
 @app.post("/auth/login", response_model=Token, tags=["auth"])
-async def login(req: LoginRequest):
+@limiter.limit("5/minute")  # 5 login attempts per minute per IP
+async def login(request: Request, req: LoginRequest):
     # Validate password requirements
     is_valid, error_msg = validate_password(req.password)
     if not is_valid:
@@ -512,7 +517,8 @@ async def get_account_history(current: User = Depends(get_current_user), limit: 
 
 
 @app.post("/auth/change-password", tags=["auth"])
-async def change_password(req: PasswordChangeRequest, current: User = Depends(get_current_user)):
+@limiter.limit("5/hour")  # 5 password changes per hour per IP
+async def change_password(request: Request, req: PasswordChangeRequest, current: User = Depends(get_current_user)):
 	"""Change user password after validating current password."""
 	# Validate new password
 	is_valid, error_msg = validate_password(req.new_password)
@@ -650,7 +656,8 @@ async def verify_secret_token(req: VerifySecretTokenRequest):
 
 
 @app.post("/auth/reset-password", tags=["auth"])
-async def reset_password(req: PasswordResetRequest):
+@limiter.limit("3/hour")  # 3 password reset attempts per hour per IP
+async def reset_password(request: Request, req: PasswordResetRequest):
 	"""Reset user password using username and secret token."""
 	# Validate new password
 	is_valid, error_msg = validate_password(req.new_password)

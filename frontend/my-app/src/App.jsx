@@ -27,7 +27,9 @@ function App() {
       }
       let msg = 'Request failed'
       try { const data = await res.json(); msg = data.detail || msg } catch {}
-      throw new Error(msg)
+      const error = new Error(msg)
+      error.status = res.status
+      throw error
     }
     return res.json()
   }

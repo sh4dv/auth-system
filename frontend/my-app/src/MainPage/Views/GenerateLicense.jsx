@@ -40,7 +40,11 @@ function GenerateLicense({ sendRequest, isPremium }) {
             setUses(1);
             setAmount(1);
         } catch (err) {
-            setError(err.message || 'Failed to generate license');
+            if (err.status === 429) {
+                setError('Too many license generation requests. Please slow down.');
+            } else {
+                setError(err.message || 'Failed to generate license');
+            }
         } finally {
             setLoading(false);
         }

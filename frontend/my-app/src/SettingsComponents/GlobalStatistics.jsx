@@ -16,7 +16,11 @@ function GlobalStatistics({ sendRequest }) {
             const data = await sendRequest('GET', 'stats/global');
             setStats(data);
         } catch (err) {
-            setError('Failed to load statistics');
+            if (err.status === 429) {
+                setError('Too many requests. Please try again later.');
+            } else {
+                setError('Failed to load statistics');
+            }
         } finally {
             setLoading(false);
         }

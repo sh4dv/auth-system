@@ -50,7 +50,11 @@ function DeleteLicense({ sendRequest }) {
             // Refresh the licenses list
             await fetchLicenses();
         } catch (err) {
-            setError(err.message || 'Failed to delete license');
+            if (err.status === 429) {
+                setError('Too many delete requests. Please slow down.');
+            } else {
+                setError(err.message || 'Failed to delete license');
+            }
         } finally {
             setLoading(false);
         }

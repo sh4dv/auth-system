@@ -11,7 +11,11 @@ function PremiumSection({ isPremium, setIsPremium, sendRequest }) {
             setIsPremium(true);
             setShowConfirmation(false);
         } catch (err) {
-            alert('Failed to upgrade. Please try again.');
+            if (err.status === 429) {
+                alert('Too many requests. Please try again later.');
+            } else {
+                alert('Failed to upgrade. Please try again.');
+            }
         } finally {
             setIsUpgrading(false);
         }

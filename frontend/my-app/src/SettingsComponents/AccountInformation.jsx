@@ -91,7 +91,11 @@ function AccountInformation({ userInfo, sendRequest, isPremium, setToken }) {
                 setToken(data.access_token);
             }
         } catch (err) {
-            setError(err.message || 'Failed to change username');
+            if (err.status === 429) {
+                setError('Too many username change attempts. Please try again later.');
+            } else {
+                setError(err.message || 'Failed to change username');
+            }
         }
     };
 
@@ -126,7 +130,11 @@ function AccountInformation({ userInfo, sendRequest, isPremium, setToken }) {
             setSecretToken(data.secret_token);
             setSecretTokenRevealed(true);
         } catch (err) {
-            setSecretTokenError(err.message || 'Failed to retrieve secret token');
+            if (err.status === 429) {
+                setSecretTokenError('Too many attempts. Please try again later.');
+            } else {
+                setSecretTokenError(err.message || 'Failed to retrieve secret token');
+            }
         }
     };
 
@@ -153,7 +161,11 @@ function AccountInformation({ userInfo, sendRequest, isPremium, setToken }) {
             setSecretTokenError('');
             alert('Secret token reset successfully! Please save your new token.');
         } catch (err) {
-            setSecretTokenError(err.message || 'Failed to reset secret token');
+            if (err.status === 429) {
+                setSecretTokenError('Too many attempts. Please try again later.');
+            } else {
+                setSecretTokenError(err.message || 'Failed to reset secret token');
+            }
         } finally {
             setIsResetting(false);
         }

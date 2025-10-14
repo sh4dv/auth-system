@@ -98,11 +98,8 @@ function Login({ setToken, sendRequest }) {
     try {
       const res = await sendRequest('POST', 'auth/login', { username, password })
       
-      console.log('Login response:', res)
-      
       // Check if this is a new user registration
       if (res.is_new_user && res.secret_token) {
-        console.log('New user detected, showing secret token modal')
         setSecretToken(res.secret_token)
         setShowSecretToken(true)
         setCanCloseToken(false)
@@ -123,7 +120,14 @@ function Login({ setToken, sendRequest }) {
       }
     } catch (err) {
       // 400 / 401: invalid login credentials
-      setError(err.message || 'Invalid credentials')
+      if (err.status === 400 || err.status === 401) {
+        setError('Invalid username or password')
+      } else if (err.status === 429) {
+        setError('Too many login attempts. Please try again later.')
+      } else {
+        setError(err.message)
+        console.log('Login error:', err)
+      }
     }
   }
 
@@ -157,7 +161,11 @@ function Login({ setToken, sendRequest }) {
       })
       setTokenVerified(true)
     } catch (err) {
-      setForgotPasswordError(err.message || 'Invalid username or secret token')
+      if (err.status === 429) {
+        setForgotPasswordError('Too many verification attempts. Please try again later.');
+      } else {
+        setForgotPasswordError(err.message || 'Invalid username or secret token');
+      }
     }
   }
 
@@ -191,7 +199,11 @@ function Login({ setToken, sendRequest }) {
       setError(null)
       alert('Password reset successfully! You can now login with your new password.')
     } catch (err) {
-      setForgotPasswordError(err.message || 'Failed to reset password')
+      if (err.status === 429) {
+        setForgotPasswordError('Too many password reset attempts. Please try again later.');
+      } else {
+        setForgotPasswordError(err.message || 'Failed to reset password');
+      }
     }
   }
 
