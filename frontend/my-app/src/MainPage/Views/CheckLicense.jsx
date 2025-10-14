@@ -41,7 +41,11 @@ function CheckLicense({ sendRequest }) {
                     licenseKey: licenseKey
                 });
             } else {
-                setError(err.message || 'Failed to validate license');
+                if (err.status === 429) {
+                    setError('Too many validation requests. Please slow down.');
+                } else {
+                    setError(err.message || 'Failed to validate license');
+                }
             }
         } finally {
             setLoading(false);

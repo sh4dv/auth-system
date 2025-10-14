@@ -18,7 +18,11 @@ function MyLicenses({ sendRequest }) {
             const data = await sendRequest('GET', 'licenses/list');
             setLicenses(data);
         } catch (err) {
-            setError(err.message || 'Failed to fetch licenses');
+            if (err.status === 429) {
+                setError('Too many requests. Please try again later.');
+            } else {
+                setError(err.message || 'Failed to fetch licenses');
+            }
         } finally {
             setLoading(false);
         }

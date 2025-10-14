@@ -57,7 +57,11 @@ function PasswordReset({ sendRequest }) {
             setNewPassword('');
             setConfirmPassword('');
         } catch (err) {
-            setError(err.message || 'Failed to change password');
+            if (err.status === 429) {
+                setError('Too many password change attempts. Please try again later.');
+            } else {
+                setError(err.message || 'Failed to change password');
+            }
         } finally {
             setIsSubmitting(false);
         }
